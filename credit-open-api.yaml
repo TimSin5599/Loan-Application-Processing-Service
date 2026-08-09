@@ -1,0 +1,98 @@
+openapi: 3.0.0
+info:
+  title: API Сервиса обработки кредитных заявок
+  version: 1.1.0
+  description: API для подачи кредитных заявок
+
+paths:
+  /credit-service/api/v1/credit/:
+    post:
+      tags:
+        - Кредитные заявки
+      summary: Подача кредитной заявки
+      description: Создание новой кредитной заявки с указанными параметрами
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditApplicationRequest'
+            examples:
+              sampleApplication:
+                value:
+                  fullName: "Иванов Иван Иванович"
+                  requestedAmount: 50000
+                  termMonths: 12
+      responses:
+        '200':
+          description: Успешная подача заявки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditApplicationResponse'
+        '400':
+          description: Некорректные данные заявки
+        '401':
+          description: Не авторизован (отсутствует или недействительный JWT токен)
+
+components:
+  schemas:
+    CreditApplicationRequest:
+      type: object
+      required:
+        - fullName
+        - requestedAmount
+        - termMonths
+      properties:
+        fullName:
+          type: string
+          minLength: 5
+          maxLength: 100
+          pattern: '^[А-Яа-яЁёA-Za-z\s-]+$'
+          example: "Иванов Иван Иванович"
+          description: Полное имя заявителя
+        requestedAmount:
+          type: number
+          example: 50000
+          description: Запрашиваемая сумма кредита
+        termMonths:
+          type: integer
+          minimum: 1
+          example: 12
+          description: Срок кредита в месяцах
+      additionalProperties: false
+      description: Данные кредитной заявки
+
+    CreditApplicationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+          description: Уникальный идентификатор заявки
+        status:
+          type: string
+          enum: ["PENDING", "APPROVED", "REJECTED"]
+          example: "PENDING"
+          description: Статус заявки
+        createdAt:
+          type: string
+          format: date-time
+          example: "2023-10-01T12:00:00Z"
+          description: Дата и время создания заявки
+      required:
+        - id
+        - status
+        - createdAt
+      additionalProperties: false
+      description: Ответ на успешную подачу заявки
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT токен авторизации
