@@ -3,6 +3,7 @@ package ru.creditbank.credit.operations.config;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,10 +27,15 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(handling -> handling.authenticationEntryPoint(
-                        (request, response, authException) -> response.sendError(HttpStatus.UNAUTHORIZED.value())))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(
+                                (request, response, authException) -> response.sendError(HttpStatus.UNAUTHORIZED.value()))
+                        .accessDeniedHandler(
+                                (request, response, accessDeniedException) -> response.sendError(HttpStatus.FORBIDDEN.value())))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers(HttpMethod.PATCH, "/credit-service/api/credit/*/status")
+                        .hasRole(Roles.CREDIT_MANAGER)
                         .anyRequest().authenticated())
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

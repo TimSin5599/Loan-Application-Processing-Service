@@ -1,0 +1,227 @@
+openapi: 3.0.0
+info:
+  title: API Сервиса обработки кредитных заявок
+  version: 1.2.0
+  description: API для подачи кредитных заявок
+
+paths:
+  /credit-service/api/v1/credit/:
+    post:
+      tags:
+        - Кредитные заявки
+      summary: Подача кредитной заявки
+      description: Создание новой кредитной заявки с указанными параметрами
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditApplicationRequest'
+            examples:
+              sampleApplication:
+                value:
+                  fullName: "Иванов Иван Иванович"
+                  requestedAmount: 50000
+                  termMonths: 12
+      responses:
+        '200':
+          description: Успешная подача заявки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditApplicationResponse'
+        '400':
+          description: Некорректные данные заявки
+        '401':
+          description: Не авторизован (отсутствует или недействительный JWT токен)
+
+  /credit-service/api/credit/{id}:
+    get:
+      tags:
+        - Кредитные заявки
+      summary: Получение информации о кредитной заявке
+      description: Возвращает полную информацию о кредитной заявке по её идентификатору
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID кредитной заявки
+      responses:
+        '200':
+          description: Успешное получение информации о заявке
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditApplicationDetails'
+        '401':
+          description: Не авторизован (отсутствует или недействительный JWT токен)
+        '404':
+          description: Заявка не найдена
+
+  /credit-service/api/credit/{id}/status:
+    patch:
+      tags:
+        - Кредитные заявки
+      summary: Изменение статуса кредитной заявки
+      description: Обновляет статус заявки и отправляет уведомление пользователю
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID кредитной заявки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+            examples:
+              approvedExample:
+                value:
+                  status: "APPROVED"
+                  managerComment: "Заявка одобрена, сумма кредита появится на счёте в течении часа"
+              rejectedExample:
+                value:
+                  status: "REJECTED"
+                  managerComment: "Заявка отклонена по причине недостаточного кредитного рейтинга"
+      responses:
+        '200':
+          description: Статус успешно обновлен
+        '400':
+          description: Некорректные данные запроса
+        '401':
+          description: Не авторизован
+        '404':
+          description: Заявка не найдена
+components:
+  schemas:
+    CreditApplicationRequest:
+      type: object
+      required:
+        - fullName
+        - requestedAmount
+        - termMonths
+      properties:
+        fullName:
+          type: string
+          minLength: 5
+          maxLength: 100
+          pattern: '^[А-Яа-яЁёA-Za-z\s-]+$'
+          example: "Иванов Иван Иванович"
+          description: Полное имя заявителя
+        requestedAmount:
+          type: number
+          example: 50000
+          description: Запрашиваемая сумма кредита
+        termMonths:
+          type: integer
+          minimum: 1
+          example: 12
+          description: Срок кредита в месяцах
+      additionalProperties: false
+      description: Данные кредитной заявки
+
+    CreditApplicationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+          description: Уникальный идентификатор заявки
+        status:
+          type: string
+          enum: ["PENDING", "APPROVED", "REJECTED"]
+          example: "PENDING"
+          description: Статус заявки
+        createdAt:
+          type: string
+          format: date-time
+          example: "2023-10-01T12:00:00Z"
+          description: Дата и время создания заявки
+      required:
+        - id
+        - status
+        - createdAt
+      additionalProperties: false
+      description: Ответ на успешную подачу заявки
+    CreditApplicationDetails:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        userInfo:
+          type: object
+          properties:
+            userId:
+              type: string
+              example: "user123"
+            fullName:
+              type: string
+              example: "Иванов Иван Иванович"
+            email:
+              type: string
+              format: email
+              example: "test@ya.ru"
+        loanDetails:
+          type: object
+          properties:
+            requestedAmount:
+              type: number
+              example: 50000
+            termMonths:
+              type: integer
+              example: 12
+            interestRate:
+              type: number
+              example: 15.3
+        status:
+          type: string
+          enum: [ "PENDING", "APPROVED", "REJECTED" ]
+          example: "PENDING"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2023-10-01T12:00:00Z"
+      required:
+        - id
+        - userInfo
+        - loanDetails
+        - status
+        - createdAt
+
+    StatusUpdateRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ "APPROVED", "REJECTED" ]
+          description: Новый статус заявки
+        managerComment:
+          type: string
+          maxLength: 500
+          description: Комментарий менеджера (необязательно)
+      additionalProperties: false
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT токен авторизации

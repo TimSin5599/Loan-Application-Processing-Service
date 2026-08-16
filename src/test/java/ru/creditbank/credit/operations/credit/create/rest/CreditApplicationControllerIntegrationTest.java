@@ -1,8 +1,6 @@
 package ru.creditbank.credit.operations.credit.create.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,16 +9,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import ru.creditbank.credit.operations.credit.create.dao.entity.CreditEntity;
-import ru.creditbank.credit.operations.credit.create.dao.entity.CreditStatus;
-import ru.creditbank.credit.operations.credit.create.dao.repository.CreditRepository;
+import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
+import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
+import ru.creditbank.credit.operations.credit.dao.repository.CreditRepository;
+import ru.creditbank.credit.operations.support.JwtTestTokenFactory;
 
-import javax.crypto.SecretKey;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
@@ -51,7 +45,7 @@ class CreditApplicationControllerIntegrationTest {
     @Test
     void createApplication_withValidJwtAndValidData_savesToDbAndReturnsCreatedApplication() throws Exception {
         UUID userId = UUID.randomUUID();
-        String token = generateToken(userId);
+        String token = generateToken(userId, "ivanov@example.com");
         Map<String, Object> requestBody = Map.of(
                 "fullName", "Иванов Иван Иванович",
                 "requestedAmount", 50000,
@@ -72,6 +66,7 @@ class CreditApplicationControllerIntegrationTest {
 
         CreditEntity saved = creditRepository.findById(createdId).orElseThrow();
         assertThat(saved.getUserId()).isEqualTo(userId);
+        assertThat(saved.getUserEmail()).isEqualTo("ivanov@example.com");
         assertThat(saved.getUserFullName()).isEqualTo("Иванов Иван Иванович");
         assertThat(saved.getRequestedAmount()).isEqualByComparingTo(BigDecimal.valueOf(50000));
         assertThat(saved.getTermMonths()).isEqualTo(12);
@@ -111,7 +106,7 @@ class CreditApplicationControllerIntegrationTest {
 
     @Test
     void createApplication_withInvalidData_returnsBadRequest() throws Exception {
-        String token = generateToken(UUID.randomUUID());
+        String token = generateToken(UUID.randomUUID(), "user@example.com");
         Map<String, Object> requestBody = Map.of(
                 "fullName", "Ив",
                 "requestedAmount", BigDecimal.valueOf(-1),
@@ -127,7 +122,7 @@ class CreditApplicationControllerIntegrationTest {
 
     @Test
     void createApplication_withMissingFields_returnsBadRequest() throws Exception {
-        String token = generateToken(UUID.randomUUID());
+        String token = generateToken(UUID.randomUUID(), "user@example.com");
 
         mockMvc.perform(post(ENDPOINT)
                         .header("Authorization", "Bearer " + token)
@@ -136,13 +131,7 @@ class CreditApplicationControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    private String generateToken(UUID userId) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        return Jwts.builder()
-                .claim("user_id", userId.toString())
-                .issuedAt(Date.from(Instant.now()))
-                .expiration(Date.from(Instant.now().plus(1, ChronoUnit.HOURS)))
-                .signWith(key)
-                .compact();
+    private String generateToken(UUID userId, String email) {
+        return JwtTestTokenFactory.generateToken(jwtSecret, userId, email, null);
     }
 }

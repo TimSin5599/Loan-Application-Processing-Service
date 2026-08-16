@@ -1,81 +1,77 @@
-# Учебное задание 2: Сервис обработки кредитных заявок. Подача онлайн-заявки на кредит
+# Учебное задание 4: Добавление функционала кредитного менеджера
 
-### Цель
-
-Создать микросервис: credit-service, который:
-- принимает заявку на кредит от API Gateway, сохраняет её в БД и возвращает результат.
-
+### Цель 
+Реализовать функционал для кредитных менеджеров в сервисе credit-service:
+  - просмотр детальной карточки заявки
+  - изменение статуса заявки (одобрение/отклонение) с уведомлением клиента
 ---
 
 ## 📌 **Функциональность**
+1. роль CREDIT_MANAGER
+    - добавить новую роль в систему.
+    - настроить SecurityConfig на проверку роли для эндпоинтов менеджера.
+2. просмотр карточки заявки
+3. изменение статуса заявки в БД с оповещением пользователя
+4. Уведомление пользователя по email
 
-1. принимать запрос от API Gateway (с JWT в headers).
-2. валидировать JWT, извлекать из него user_id
-3. валидировать данные заявки.
-4. сохранять в таблицу БД credit_operation с полями:
+Шаблон email
+```text
+Тема: Ваша кредитная заявка #{id}  
+Тело:  
+Уважаемый {fullName}, ваша заявка на кредит переведена {client_status}.  
+Комментарий менеджера: {managerComment}  
+```
 
-| Поле             | Тип          | Описание             |
-|------------------|--------------|----------------------|
-| id               | UUID         | Уникальный ID записи |
-| user_id          | UUID         | ID пользователя      |
-| user_full_name   | VARCHAR(100) | ФИО                  |
-| requested_amount | DECIMAL      | Сумма кредита        |
-| term_months      | INTEGER      | Срок (месяцы)        |
-| status           | VARCHAR(20)  | Статус               |
-| creation_date    | TIMESTAMP    | Дата создания        |
-| last_updated     | TIMESTAMP    | Дата обновления      |
+Обновленная структура БД
 
+| Поле           | Тип     | Описание              |
+|----------------|---------|-----------------------|
+| managerComment | TEXT    | Комментарий менеджера |
+| interest_rate  | DECIMAL | Процентная ставка     |
 ---
 
 ## 🛠 **Технологии**
 
-- Java 17
-- Spring Boot 3.x
-- Spring Data JPA (Hibernate)
-- PostgreSQL / H2 (для разработки)
-- Lombok
-
+  - Java 17 
+  - Spring Boot 3.x
+  - Spring Data JPA
+  - PostgreSQL/H2 
+  - Lombok 
+  - Java Mail Sender (для уведомлений)    
 ---
 
 ## 📂 **Структура проекта**
 
 credit-operations  
 ├── src  
-│ ├── main  
-│ │ ├── java  
-│ │ │ └── ru.creditbank.credit.operations  
-│ │ │ │ ├── config # Security  
-│ │ │ │ ├── credit    
-│ │ │ │ │ ├── create # CreditApplicationController  
-│ │ │ │ │ │ ├── rest # CreditApplicationController  
-│ │ │ │ │ │ │ ├── dto # Request/Response  
-│ │ │ │ │ │ ├── service # CreditCreateUseCase  
-│ │ │ │ │ │ ├── dao              
-│ │ │ │ │ │ │ ├── entity # CreditEntity  
-│ │ │ │ │ │ │ ├── repository # CreditRepository  
-│ │ │ │ │ │ │ ├── service # CreditProvider  
-│ │ │ │ └── CreditAppApplication.java  
-│ │ └── resources  
-│ │ ├── application.yml  
-│ └── test # Тесты  
-
+│   ├── main  
+│   │   ├── java  
+│   │   │   └── ru.creditbank.credit.operations.  
+│   │   │   │   ├── config            # Security  
+│   │   │   │   ├── credit  
+│   │   │   │   │    ├── manage     
+│   │   │   │   │       ├── rest   
+│   │   │   │   │         ├── dto     # Request/Response  
+│   │   │   │   │         ├── service # CreditAppService  
+│   │   │   │   └── CreditAppApplication.java  
+│   │   └── resources  
+│   │       ├── application.yml  
+│   └── test   
 ---
 
 ## 🔐 **API Endpoints**
-[open-api](credit-open-api.yaml)
-1. Подача заявки
+[open-api-v2](credit-open-api-v2.yaml)
+1. Получение информации о кредите
+2. Изменение статуса
 ---
-
 ## 🧪 Тестирование
 
-1. Через Postman:
-    - отправить POST-запрос с JWT и данными заявки.
-    - проверить, что заявка сохранилась в БД.
-2. Интеграционные тесты:
-    - проверить, что заявка сохранилась в БД.
-    - проверить обработку ошибок.
-3. Unit тесты:
-    - проверить правильность валидации полей
----
+1. Через Postman
+    - email успешно отправлен
 
-## 📌 Дополнительные задания
+2. Интеграционные тесты:
+    - Доступ без роли CREDIT_MANAGER → 403 Forbidden
+    - Корректность полученных данных по кредиту
+3. Unit тесты:
+    - валидация входных данных
+---

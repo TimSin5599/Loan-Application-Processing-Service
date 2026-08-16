@@ -1,4 +1,4 @@
-package ru.creditbank.credit.operations.credit.create.dao.entity;
+package ru.creditbank.credit.operations.credit.dao.entity;
 
 public enum CreditStatus {
     PENDING,

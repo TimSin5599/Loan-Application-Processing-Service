@@ -14,6 +14,7 @@ import java.util.UUID;
 public class JwtService {
 
     private static final String USER_ID_CLAIM = "user_id";
+    private static final String ROLE_CLAIM = "role";
 
     private final SecretKey signingKey;
 
@@ -21,20 +22,22 @@ public class JwtService {
         this.signingKey = Keys.hmacShaKeyFor(jwtProperties.secret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public UUID extractUserId(String token) {
+    public AuthenticatedUser authenticate(String token) {
         Claims claims = parseClaims(token);
         String userId = claims.get(USER_ID_CLAIM, String.class);
         if (userId == null) {
-            userId = claims.getSubject();
-        }
-        if (userId == null) {
             throw new JwtException("В JWT токене отсутствует user_id");
         }
+        UUID parsedUserId;
         try {
-            return UUID.fromString(userId);
+            parsedUserId = UUID.fromString(userId);
         } catch (IllegalArgumentException e) {
             throw new JwtException("Некорректный формат user_id в JWT токене", e);
         }
+
+        String email = claims.getSubject();
+        String role = claims.get(ROLE_CLAIM, String.class);
+        return new AuthenticatedUser(parsedUserId, email, role);
     }
 
     private Claims parseClaims(String token) {
