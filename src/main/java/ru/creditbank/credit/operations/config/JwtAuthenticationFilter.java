@@ -9,13 +9,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -46,8 +47,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = header.substring(BEARER_PREFIX.length());
         try {
-            UUID userId = jwtService.extractUserId(token);
-            var authentication = new UsernamePasswordAuthenticationToken(userId, token, List.of());
+            AuthenticatedUser user = jwtService.authenticate(token);
+            List<GrantedAuthority> authorities = user.role() == null
+                    ? List.of()
+                    : List.of(new SimpleGrantedAuthority("ROLE_" + user.role()));
+            var authentication = new UsernamePasswordAuthenticationToken(user, token, authorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (JwtException | IllegalArgumentException e) {
             unauthorized(response, "Недействительный JWT токен");

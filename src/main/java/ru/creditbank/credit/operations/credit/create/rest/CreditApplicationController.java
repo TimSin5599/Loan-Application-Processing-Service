@@ -7,11 +7,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ru.creditbank.credit.operations.config.AuthenticatedUser;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationRequest;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponse;
 import ru.creditbank.credit.operations.credit.create.service.CreditCreateUseCase;
-
-import java.util.UUID;
 
 @RestController
 public class CreditApplicationController {
@@ -24,8 +23,8 @@ public class CreditApplicationController {
 
     @ResponseStatus(HttpStatus.OK)
     @PostMapping("/credit-service/api/v1/credit/")
-    public CreditApplicationResponse createApplication(@AuthenticationPrincipal UUID userId,
+    public CreditApplicationResponse createApplication(@AuthenticationPrincipal AuthenticatedUser applicant,
                                                          @Valid @RequestBody CreditApplicationRequest request) {
-        return creditCreateUseCase.createApplication(userId, request);
+        return creditCreateUseCase.createApplication(applicant, request);
     }
 }

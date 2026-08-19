@@ -1,14 +1,14 @@
 package ru.creditbank.credit.operations.credit.create.service;
 
 import org.springframework.stereotype.Service;
-import ru.creditbank.credit.operations.credit.create.dao.entity.CreditEntity;
-import ru.creditbank.credit.operations.credit.create.dao.entity.CreditStatus;
-import ru.creditbank.credit.operations.credit.create.dao.service.CreditProvider;
+import ru.creditbank.credit.operations.config.AuthenticatedUser;
+import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
+import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
+import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationRequest;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponse;
 
 import java.time.ZoneOffset;
-import java.util.UUID;
 
 @Service
 public class CreditCreateUseCaseImpl implements CreditCreateUseCase {
@@ -20,9 +20,10 @@ public class CreditCreateUseCaseImpl implements CreditCreateUseCase {
     }
 
     @Override
-    public CreditApplicationResponse createApplication(UUID userId, CreditApplicationRequest request) {
+    public CreditApplicationResponse createApplication(AuthenticatedUser applicant, CreditApplicationRequest request) {
         CreditEntity creditEntity = CreditEntity.builder()
-                .userId(userId)
+                .userId(applicant.userId())
+                .userEmail(applicant.email())
                 .userFullName(request.fullName())
                 .requestedAmount(request.requestedAmount())
                 .termMonths(request.termMonths())

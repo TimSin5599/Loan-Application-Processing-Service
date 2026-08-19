@@ -1,4 +1,4 @@
-package ru.creditbank.credit.operations.credit.create.dao.entity;
+package ru.creditbank.credit.operations.credit.dao.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,6 +40,9 @@ public class CreditEntity {
     @Column(name = "user_full_name", length = 100, nullable = false)
     private String userFullName;
 
+    @Column(name = "user_email", nullable = false)
+    private String userEmail;
+
     @Column(name = "requested_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal requestedAmount;
 
@@ -49,6 +52,12 @@ public class CreditEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20, nullable = false)
     private CreditStatus status;
+
+    @Column(name = "manager_comment", columnDefinition = "TEXT")
+    private String managerComment;
+
+    @Column(name = "interest_rate", precision = 5, scale = 2)
+    private BigDecimal interestRate;
 
     @Column(name = "creation_date", nullable = false, updatable = false)
     private LocalDateTime creationDate;

@@ -5,6 +5,7 @@ target/
 !**/src/test/**/target/
 .claude
 .DS_Store
+.env
 
 ### STS ###
 .apt_generated

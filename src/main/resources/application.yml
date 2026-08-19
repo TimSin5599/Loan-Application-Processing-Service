@@ -1,4 +1,9 @@
+server:
+  port: ${SERVER_PORT:8081}
+
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: credit-operations
 
@@ -16,6 +21,18 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 jwt:
   secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
