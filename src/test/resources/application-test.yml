@@ -9,6 +9,3 @@ spring:
     hibernate:
       ddl-auto: create-drop
     database-platform: org.hibernate.dialect.H2Dialect
-
-jwt:
-  secret: test-secret-key-must-be-at-least-256-bits-long-for-hs256-signing

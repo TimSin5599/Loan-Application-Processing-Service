@@ -34,8 +34,10 @@ spring:
           starttls:
             enable: true
 
-jwt:
-  secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+services:
+  loan-management:
+    base-url: ${LOAN_MANAGEMENT_URL:http://localhost:8082}
+    internal-api-key: ${INTERNAL_API_KEY:REPLACE_WITH_AN_INTERNAL_SERVICE_SECRET}
 
 ---
 spring:

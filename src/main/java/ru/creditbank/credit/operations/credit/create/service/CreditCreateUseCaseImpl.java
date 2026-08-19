@@ -7,6 +7,7 @@ import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationRequest;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponse;
+import ru.creditbank.credit.operations.credit.scoring.service.CreditScoringService;
 
 import java.time.ZoneOffset;
 
@@ -14,9 +15,11 @@ import java.time.ZoneOffset;
 public class CreditCreateUseCaseImpl implements CreditCreateUseCase {
 
     private final CreditProvider creditProvider;
+    private final CreditScoringService creditScoringService;
 
-    public CreditCreateUseCaseImpl(CreditProvider creditProvider) {
+    public CreditCreateUseCaseImpl(CreditProvider creditProvider, CreditScoringService creditScoringService) {
         this.creditProvider = creditProvider;
+        this.creditScoringService = creditScoringService;
     }
 
     @Override
@@ -31,6 +34,7 @@ public class CreditCreateUseCaseImpl implements CreditCreateUseCase {
                 .build();
 
         CreditEntity saved = creditProvider.save(creditEntity);
+        creditScoringService.scoreApplication(saved.getId());
 
         return new CreditApplicationResponse(
                 saved.getId(),

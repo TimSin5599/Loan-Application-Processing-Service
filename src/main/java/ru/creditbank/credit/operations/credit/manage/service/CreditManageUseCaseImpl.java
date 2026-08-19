@@ -1,9 +1,7 @@
 package ru.creditbank.credit.operations.credit.manage.service;
 
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import ru.creditbank.credit.operations.config.AuthenticatedUser;
-import ru.creditbank.credit.operations.config.Roles;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
@@ -18,22 +16,17 @@ import java.util.UUID;
 public class CreditManageUseCaseImpl implements CreditManageUseCase {
 
     private final CreditProvider creditProvider;
-    private final CreditNotificationService creditNotificationService;
+    private final CreditDecisionService creditDecisionService;
 
-    public CreditManageUseCaseImpl(CreditProvider creditProvider, CreditNotificationService creditNotificationService) {
+    public CreditManageUseCaseImpl(CreditProvider creditProvider,
+                                    CreditDecisionService creditDecisionService) {
         this.creditProvider = creditProvider;
-        this.creditNotificationService = creditNotificationService;
+        this.creditDecisionService = creditDecisionService;
     }
 
     @Override
     public CreditApplicationDetails getApplicationDetails(AuthenticatedUser requester, UUID id) {
         CreditEntity credit = findOrThrow(id);
-
-        boolean isManager = Roles.CREDIT_MANAGER.equals(requester.role());
-        boolean isOwner = credit.getUserId().equals(requester.userId());
-        if (!isManager && !isOwner) {
-            throw new AccessDeniedException("Недостаточно прав для просмотра заявки " + id);
-        }
 
         return new CreditApplicationDetails(
                 credit.getId(),
@@ -55,15 +48,8 @@ public class CreditManageUseCaseImpl implements CreditManageUseCase {
     @Override
     public void updateStatus(UUID id, StatusUpdateRequest request) {
         CreditEntity credit = findOrThrow(id);
-
-        credit.setStatus(CreditStatus.valueOf(request.status().name()));
-        credit.setManagerComment(request.managerComment());
-        if (request.interestRate() != null) {
-            credit.setInterestRate(request.interestRate());
-        }
-
-        CreditEntity saved = creditProvider.save(credit);
-        creditNotificationService.notifyStatusChange(saved);
+        CreditStatus newStatus = CreditStatus.valueOf(request.status().name());
+        creditDecisionService.applyDecision(credit, newStatus, request.managerComment(), request.interestRate());
     }
 
     private CreditEntity findOrThrow(UUID id) {

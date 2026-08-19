@@ -2,18 +2,33 @@ package ru.creditbank.credit.operations.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import ru.creditbank.credit.operations.credit.manage.service.NotificationDeliveryFailedException;
+import ru.creditbank.credit.operations.loan.LoanIssuanceFailedException;
 
 import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(LoanIssuanceFailedException.class)
+    public ResponseEntity<ErrorResponse> handleLoanIssuanceFailed(LoanIssuanceFailedException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.BAD_GATEWAY.value(),
+                ex.getMessage(),
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorResponse);
+    }
 
     @ExceptionHandler(CreditNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleCreditNotFound(CreditNotFoundException ex) {
@@ -25,15 +40,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
     }
 
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
-        String message = "Недостаточно прав для выполнения операции";
+    @ExceptionHandler(NotificationDeliveryFailedException.class)
+    public ResponseEntity<ErrorResponse> handleNotificationDeliveryFailed(NotificationDeliveryFailedException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.FORBIDDEN.value(),
-                message,
-                List.of(message)
+                HttpStatus.BAD_GATEWAY.value(),
+                ex.getMessage(),
+                List.of(ex.getMessage())
         );
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorResponse);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -70,5 +84,17 @@ public class GlobalExceptionHandler {
                 List.of(message)
         );
         return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+        log.error("Необработанная ошибка", ex);
+        String message = "Внутренняя ошибка сервиса";
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                message,
+                List.of(message)
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
 }

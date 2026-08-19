@@ -1,7 +1,5 @@
 package ru.creditbank.credit.operations.credit.manage.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -11,8 +9,6 @@ import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 
 @Service
 public class CreditNotificationService {
-
-    private static final Logger log = LoggerFactory.getLogger(CreditNotificationService.class);
 
     private final JavaMailSender mailSender;
 
@@ -35,7 +31,7 @@ public class CreditNotificationService {
         try {
             mailSender.send(message);
         } catch (MailException e) {
-            log.warn("Не удалось отправить уведомление по заявке {}", credit.getId(), e);
+            throw new NotificationDeliveryFailedException(credit.getId(), e);
         }
     }
 

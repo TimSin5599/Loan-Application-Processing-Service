@@ -12,6 +12,7 @@ import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationRequest;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponse;
+import ru.creditbank.credit.operations.credit.scoring.service.CreditScoringService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,6 +28,9 @@ class CreditCreateUseCaseImplTest {
 
     @Mock
     private CreditProvider creditProvider;
+
+    @Mock
+    private CreditScoringService creditScoringService;
 
     @InjectMocks
     private CreditCreateUseCaseImpl creditCreateUseCase;
@@ -71,5 +75,7 @@ class CreditCreateUseCaseImplTest {
         assertThat(response.id()).isEqualTo(savedId);
         assertThat(response.status()).isEqualTo("PENDING");
         assertThat(response.createdAt()).isNotNull();
+
+        verify(creditScoringService).scoreApplication(savedId);
     }
 }
