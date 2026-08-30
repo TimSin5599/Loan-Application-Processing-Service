@@ -7,13 +7,8 @@ import ru.creditbank.credit.operations.credit.scoring.service.ScoringRule;
 
 import java.math.BigDecimal;
 
-/**
- * Жёсткий потолок суммы для автоматического одобрения — крупные заявки
- * всегда должны получить решение менеджера, независимо от истории клиента.
- */
 @Component
 public class MaxAmountRule implements ScoringRule {
-
     public static final BigDecimal MAX_AUTO_APPROVAL_AMOUNT = BigDecimal.valueOf(3_000_000);
 
     @Override

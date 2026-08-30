@@ -1,5 +1,6 @@
 package ru.creditbank.credit.operations.config;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -13,14 +14,14 @@ import org.springframework.security.web.context.SecurityContextRepository;
 
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
-
-    private final GatewayAuthenticationFilter gatewayAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final SecurityContextRepository securityContextRepository;
 
-    public SecurityConfig(GatewayAuthenticationFilter gatewayAuthenticationFilter,
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                            SecurityContextRepository securityContextRepository) {
-        this.gatewayAuthenticationFilter = gatewayAuthenticationFilter;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.securityContextRepository = securityContextRepository;
     }
 
@@ -41,7 +42,7 @@ public class SecurityConfig {
                         .hasRole(Roles.CREDIT_MANAGER)
                         .anyRequest().authenticated())
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-                .addFilterBefore(gatewayAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

@@ -11,7 +11,6 @@ public record CreditApplicationDetails(
         String status,
         OffsetDateTime createdAt
 ) {
-
     public record UserInfo(String userId, String fullName, String email) {
     }
 

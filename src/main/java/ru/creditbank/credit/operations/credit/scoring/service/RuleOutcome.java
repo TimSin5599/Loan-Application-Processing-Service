@@ -1,7 +1,6 @@
 package ru.creditbank.credit.operations.credit.scoring.service;
 
 public record RuleOutcome(RuleVerdict verdict, String reason) {
-
     public static RuleOutcome pass() {
         return new RuleOutcome(RuleVerdict.PASS, null);
     }

@@ -9,7 +9,6 @@ import java.util.UUID;
 
 @Service
 public class CreditProvider {
-
     private final CreditRepository creditRepository;
 
     public CreditProvider(CreditRepository creditRepository) {
@@ -22,5 +21,9 @@ public class CreditProvider {
 
     public Optional<CreditEntity> findById(UUID id) {
         return creditRepository.findById(id);
+    }
+
+    public Optional<CreditEntity> findByIdForUpdate(UUID id) {
+        return creditRepository.findByIdForUpdate(id);
     }
 }

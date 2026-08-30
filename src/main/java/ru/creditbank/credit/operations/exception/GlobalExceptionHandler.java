@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import ru.creditbank.credit.operations.credit.manage.service.CreditAlreadyDecidedException;
 import ru.creditbank.credit.operations.credit.manage.service.NotificationDeliveryFailedException;
 import ru.creditbank.credit.operations.loan.LoanIssuanceFailedException;
 
@@ -17,7 +18,6 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(LoanIssuanceFailedException.class)
@@ -38,6 +38,16 @@ public class GlobalExceptionHandler {
                 List.of(ex.getMessage())
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    @ExceptionHandler(CreditAlreadyDecidedException.class)
+    public ResponseEntity<ErrorResponse> handleCreditAlreadyDecided(CreditAlreadyDecidedException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
     @ExceptionHandler(NotificationDeliveryFailedException.class)

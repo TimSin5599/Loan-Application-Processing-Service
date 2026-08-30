@@ -3,11 +3,13 @@ package ru.creditbank.credit.operations.credit.scoring;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -18,10 +20,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import ru.creditbank.credit.operations.config.GatewayAuthenticationFilter;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.repository.CreditRepository;
+import ru.creditbank.credit.operations.support.JwtTestTokenFactory;
 
 import java.util.Map;
 import java.util.UUID;
@@ -42,7 +44,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class CreditAutoScoringIntegrationTest {
-
     private static final String ENDPOINT = "/credit-service/api/v1/credit/";
     private static final String PAYMENT_HISTORY_PATH = "/loan-management-service/internal/users/.*/payment-history";
     private static final String ISSUE_LOAN_PATH = "/loan-management-service/internal/loans";
@@ -58,8 +59,14 @@ class CreditAutoScoringIntegrationTest {
     @Autowired
     private CreditRepository creditRepository;
 
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
     @MockBean
     private JavaMailSender mailSender;
+
+    @Value("${jwt.secret}")
+    private String jwtSecret;
 
     @BeforeAll
     static void startLoanManagementServiceStub() {
@@ -81,17 +88,23 @@ class CreditAutoScoringIntegrationTest {
     @BeforeEach
     void resetStub() {
         loanManagementService.resetAll();
+        circuitBreakerRegistry.circuitBreaker("loanManagementService").reset();
     }
 
     @Test
     void createApplication_goodPaymentHistory_autoApprovesIssuesLoanAndNotifies() throws Exception {
+        UUID loanId = UUID.randomUUID();
         stubPaymentHistory("""
-                {"totalLoans":3,"activeLoans":1,"onTimePayments":30,"latePayments":1,
-                 "hasActiveOverdue":false,"totalOutstandingDebt":200000}""");
+                {"totalLoans":3,"activeLoans":1,"hasActiveOverdue":false,"totalOutstandingDebt":200000}""");
         loanManagementService.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post(urlMatching(ISSUE_LOAN_PATH))
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"loanId\":\"" + UUID.randomUUID() + "\",\"status\":\"ACTIVE\"}")));
+                        .withBody("{\"loanId\":\"" + loanId + "\",\"status\":\"ACTIVE\"}")));
+        loanManagementService.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post(
+                        urlMatching("/loan-management-service/internal/loans/" + loanId + "/schedule"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"loanId\":\"" + loanId + "\",\"installmentsCreated\":12}")));
 
         UUID createdId = createApplication(300_000, 12);
 
@@ -105,8 +118,7 @@ class CreditAutoScoringIntegrationTest {
     @Test
     void createApplication_activeOverdueInHistory_autoRejectsAndNotifiesWithoutIssuingLoan() throws Exception {
         stubPaymentHistory("""
-                {"totalLoans":2,"activeLoans":1,"onTimePayments":10,"latePayments":2,
-                 "hasActiveOverdue":true,"totalOutstandingDebt":100000}""");
+                {"totalLoans":2,"activeLoans":1,"hasActiveOverdue":true,"totalOutstandingDebt":100000}""");
 
         UUID createdId = createApplication(300_000, 12);
 
@@ -121,8 +133,7 @@ class CreditAutoScoringIntegrationTest {
     @Test
     void createApplication_noCreditHistory_leavesPendingForManualReview() throws Exception {
         stubPaymentHistory("""
-                {"totalLoans":0,"activeLoans":0,"onTimePayments":0,"latePayments":0,
-                 "hasActiveOverdue":false,"totalOutstandingDebt":0}""");
+                {"totalLoans":0,"activeLoans":0,"hasActiveOverdue":false,"totalOutstandingDebt":0}""");
 
         UUID createdId = createApplication(300_000, 12);
 
@@ -146,9 +157,9 @@ class CreditAutoScoringIntegrationTest {
                 "termMonths", termMonths
         );
 
+        String token = JwtTestTokenFactory.generateToken(jwtSecret, UUID.randomUUID(), "ivanov@example.com", null);
         String responseJson = mockMvc.perform(post(ENDPOINT)
-                        .header(GatewayAuthenticationFilter.USER_ID_HEADER, UUID.randomUUID().toString())
-                        .header(GatewayAuthenticationFilter.USER_EMAIL_HEADER, "ivanov@example.com")
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestBody)))
                 .andExpect(status().isOk())

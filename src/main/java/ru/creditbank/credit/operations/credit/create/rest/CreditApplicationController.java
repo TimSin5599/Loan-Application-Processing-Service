@@ -14,7 +14,6 @@ import ru.creditbank.credit.operations.credit.create.service.CreditCreateUseCase
 
 @RestController
 public class CreditApplicationController {
-
     private final CreditCreateUseCase creditCreateUseCase;
 
     public CreditApplicationController(CreditCreateUseCase creditCreateUseCase) {

@@ -14,12 +14,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DebtLoadRuleTest {
-
     private final DebtLoadRule rule = new DebtLoadRule();
 
     @Test
     void evaluate_noCreditHistory_abstains() {
-        PaymentHistoryResponse history = new PaymentHistoryResponse(0, 0, 0, 0, false, BigDecimal.ZERO);
+        PaymentHistoryResponse history = new PaymentHistoryResponse(0, 0, false, BigDecimal.ZERO);
 
         RuleOutcome outcome = rule.evaluate(context(BigDecimal.valueOf(500_000), history));
 
@@ -28,7 +27,7 @@ class DebtLoadRuleTest {
 
     @Test
     void evaluate_projectedDebtWithinLimit_passes() {
-        PaymentHistoryResponse history = new PaymentHistoryResponse(2, 1, 10, 0, false, BigDecimal.valueOf(500_000));
+        PaymentHistoryResponse history = new PaymentHistoryResponse(2, 1, false, BigDecimal.valueOf(500_000));
 
         RuleOutcome outcome = rule.evaluate(context(BigDecimal.valueOf(500_000), history));
 
@@ -37,7 +36,7 @@ class DebtLoadRuleTest {
 
     @Test
     void evaluate_projectedDebtAboveLimit_fails() {
-        PaymentHistoryResponse history = new PaymentHistoryResponse(2, 2, 10, 0, false, BigDecimal.valueOf(4_800_000));
+        PaymentHistoryResponse history = new PaymentHistoryResponse(2, 2, false, BigDecimal.valueOf(4_800_000));
 
         RuleOutcome outcome = rule.evaluate(context(BigDecimal.valueOf(500_000), history));
 

@@ -5,6 +5,5 @@ import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationR
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponse;
 
 public interface CreditCreateUseCase {
-
     CreditApplicationResponse createApplication(AuthenticatedUser applicant, CreditApplicationRequest request);
 }

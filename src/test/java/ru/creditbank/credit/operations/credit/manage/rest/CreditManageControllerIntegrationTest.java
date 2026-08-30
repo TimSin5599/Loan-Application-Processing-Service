@@ -3,11 +3,13 @@ package ru.creditbank.credit.operations.credit.manage.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -19,11 +21,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import ru.creditbank.credit.operations.config.GatewayAuthenticationFilter;
 import ru.creditbank.credit.operations.config.Roles;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.repository.CreditRepository;
+import ru.creditbank.credit.operations.support.JwtTestTokenFactory;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -49,7 +51,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class CreditManageControllerIntegrationTest {
-
     private static final String INTERNAL_API_KEY = "test-internal-key";
     private static WireMockServer loanManagementService;
 
@@ -62,8 +63,14 @@ class CreditManageControllerIntegrationTest {
     @Autowired
     private CreditRepository creditRepository;
 
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
     @MockBean
     private JavaMailSender mailSender;
+
+    @Value("${jwt.secret}")
+    private String jwtSecret;
 
     @BeforeAll
     static void startLoanManagementServiceStub() {
@@ -85,6 +92,7 @@ class CreditManageControllerIntegrationTest {
     @BeforeEach
     void resetStub() {
         loanManagementService.resetAll();
+        circuitBreakerRegistry.circuitBreaker("loanManagementService").reset();
     }
 
     @Test
@@ -112,8 +120,6 @@ class CreditManageControllerIntegrationTest {
 
     @Test
     void getApplication_asAnyAuthenticatedUser_returnsDetails() throws Exception {
-        // Доступ к заявке ограничивается на уровне apigateway, а не в этом сервисе —
-        // сюда долетают уже авторизованные запросы.
         CreditEntity credit = creditRepository.save(newCredit(UUID.randomUUID()));
 
         mockMvc.perform(asUser(get("/credit-service/api/credit/{id}", credit.getId()),
@@ -122,7 +128,7 @@ class CreditManageControllerIntegrationTest {
     }
 
     @Test
-    void getApplication_withoutUserHeader_returnsUnauthorized() throws Exception {
+    void getApplication_withoutJwt_returnsUnauthorized() throws Exception {
         CreditEntity credit = creditRepository.save(newCredit(UUID.randomUUID()));
 
         mockMvc.perform(get("/credit-service/api/credit/{id}", credit.getId()))
@@ -139,15 +145,14 @@ class CreditManageControllerIntegrationTest {
     @Test
     void updateStatus_asManager_updatesDbAndSendsNotification() throws Exception {
         CreditEntity credit = creditRepository.save(newCredit(UUID.randomUUID()));
+        UUID loanId = UUID.randomUUID();
         Map<String, Object> requestBody = Map.of(
                 "status", "APPROVED",
                 "managerComment", "Заявка одобрена",
                 "interestRate", 15.5
         );
-        loanManagementService.stubFor(post(urlEqualTo("/loan-management-service/internal/loans"))
-                .willReturn(aResponse().withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody("{\"loanId\":\"" + UUID.randomUUID() + "\",\"status\":\"ACTIVE\"}")));
+        stubLoanIssuance(loanId);
+        stubPaymentSchedule(loanId);
 
         mockMvc.perform(asUser(patch("/credit-service/api/credit/{id}/status", credit.getId()),
                         UUID.randomUUID(), "manager@example.com", Roles.CREDIT_MANAGER)
@@ -164,6 +169,30 @@ class CreditManageControllerIntegrationTest {
         loanManagementService.verify(postRequestedFor(urlEqualTo("/loan-management-service/internal/loans"))
                 .withHeader("X-Internal-Api-Key", equalTo(INTERNAL_API_KEY))
                 .withRequestBody(matchingJsonPath("$.creditApplicationId", equalTo(credit.getId().toString()))));
+        loanManagementService.verify(postRequestedFor(urlEqualTo(schedulePath(loanId))));
+    }
+
+    @Test
+    void updateStatus_calledTwice_secondCallReturnsConflictAndDoesNotReissueLoan() throws Exception {
+        CreditEntity credit = creditRepository.save(newCredit(UUID.randomUUID()));
+        UUID loanId = UUID.randomUUID();
+        Map<String, Object> requestBody = Map.of("status", "APPROVED");
+        stubLoanIssuance(loanId);
+        stubPaymentSchedule(loanId);
+
+        mockMvc.perform(asUser(patch("/credit-service/api/credit/{id}/status", credit.getId()),
+                        UUID.randomUUID(), "manager@example.com", Roles.CREDIT_MANAGER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestBody)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(asUser(patch("/credit-service/api/credit/{id}/status", credit.getId()),
+                        UUID.randomUUID(), "manager@example.com", Roles.CREDIT_MANAGER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestBody)))
+                .andExpect(status().isConflict());
+
+        loanManagementService.verify(1, postRequestedFor(urlEqualTo("/loan-management-service/internal/loans")));
     }
 
     @Test
@@ -182,6 +211,31 @@ class CreditManageControllerIntegrationTest {
 
         CreditEntity unchanged = creditRepository.findById(credit.getId()).orElseThrow();
         assertThat(unchanged.getStatus()).isEqualTo(CreditStatus.PENDING);
+        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void updateStatus_asManager_scheduleCreationFails_compensatesByCancellingLoanAndKeepsCreditPending() throws Exception {
+        CreditEntity credit = creditRepository.save(newCredit(UUID.randomUUID()));
+        UUID loanId = UUID.randomUUID();
+        Map<String, Object> requestBody = Map.of("status", "APPROVED");
+        stubLoanIssuance(loanId);
+        loanManagementService.stubFor(post(urlEqualTo(schedulePath(loanId)))
+                .willReturn(aResponse().withStatus(500)));
+        loanManagementService.stubFor(post(urlEqualTo(cancelPath(loanId)))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"loanId\":\"" + loanId + "\",\"status\":\"CANCELLED\"}")));
+
+        mockMvc.perform(asUser(patch("/credit-service/api/credit/{id}/status", credit.getId()),
+                        UUID.randomUUID(), "manager@example.com", Roles.CREDIT_MANAGER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestBody)))
+                .andExpect(status().isBadGateway());
+
+        CreditEntity unchanged = creditRepository.findById(credit.getId()).orElseThrow();
+        assertThat(unchanged.getStatus()).isEqualTo(CreditStatus.PENDING);
+        loanManagementService.verify(postRequestedFor(urlEqualTo(cancelPath(loanId))));
         verify(mailSender, never()).send(any(SimpleMailMessage.class));
     }
 
@@ -236,13 +290,29 @@ class CreditManageControllerIntegrationTest {
 
     private MockHttpServletRequestBuilder asUser(MockHttpServletRequestBuilder builder,
                                                   UUID userId, String email, String role) {
-        builder.header(GatewayAuthenticationFilter.USER_ID_HEADER, userId.toString());
-        if (email != null) {
-            builder.header(GatewayAuthenticationFilter.USER_EMAIL_HEADER, email);
-        }
-        if (role != null) {
-            builder.header(GatewayAuthenticationFilter.USER_ROLE_HEADER, role);
-        }
-        return builder;
+        String token = JwtTestTokenFactory.generateToken(jwtSecret, userId, email, role);
+        return builder.header("Authorization", "Bearer " + token);
+    }
+
+    private void stubLoanIssuance(UUID loanId) {
+        loanManagementService.stubFor(post(urlEqualTo("/loan-management-service/internal/loans"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"loanId\":\"" + loanId + "\",\"status\":\"ACTIVE\"}")));
+    }
+
+    private void stubPaymentSchedule(UUID loanId) {
+        loanManagementService.stubFor(post(urlEqualTo(schedulePath(loanId)))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"loanId\":\"" + loanId + "\",\"installmentsCreated\":12}")));
+    }
+
+    private String schedulePath(UUID loanId) {
+        return "/loan-management-service/internal/loans/" + loanId + "/schedule";
+    }
+
+    private String cancelPath(UUID loanId) {
+        return "/loan-management-service/internal/loans/" + loanId + "/cancel";
     }
 }

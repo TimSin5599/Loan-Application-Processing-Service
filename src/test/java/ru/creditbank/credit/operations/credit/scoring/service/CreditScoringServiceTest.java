@@ -2,13 +2,14 @@ package ru.creditbank.credit.operations.credit.scoring.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
+import ru.creditbank.credit.operations.credit.manage.service.CreditAlreadyDecidedException;
 import ru.creditbank.credit.operations.credit.manage.service.CreditDecisionService;
+import ru.creditbank.credit.operations.credit.manage.service.LoanApprovalSaga;
 import ru.creditbank.credit.operations.exception.CreditNotFoundException;
 import ru.creditbank.credit.operations.loan.PaymentHistoryClient;
 import ru.creditbank.credit.operations.loan.PaymentHistoryUnavailableException;
@@ -24,14 +25,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CreditScoringServiceTest {
-
     @Mock
     private CreditProvider creditProvider;
 
@@ -41,11 +41,14 @@ class CreditScoringServiceTest {
     @Mock
     private CreditDecisionService creditDecisionService;
 
+    @Mock
+    private LoanApprovalSaga loanApprovalSaga;
+
     private static final PaymentHistoryResponse EMPTY_HISTORY =
-            new PaymentHistoryResponse(0, 0, 0, 0, false, BigDecimal.ZERO);
+            new PaymentHistoryResponse(0, 0, false, BigDecimal.ZERO);
 
     @Test
-    void scoreApplication_allRulesPass_approvesAutomatically() {
+    void scoreApplication_allRulesPass_approvesAutomaticallyViaSaga() {
         CreditEntity credit = credit();
         when(creditProvider.findById(credit.getId())).thenReturn(Optional.of(credit));
         when(paymentHistoryClient.fetchHistory(credit.getUserId())).thenReturn(EMPTY_HISTORY);
@@ -53,13 +56,8 @@ class CreditScoringServiceTest {
 
         service.scoreApplication(credit.getId());
 
-        ArgumentCaptor<BigDecimal> rateCaptor = ArgumentCaptor.forClass(BigDecimal.class);
-        verify(creditDecisionService).applyDecision(
-                eq(credit),
-                eq(CreditStatus.APPROVED),
-                any(),
-                rateCaptor.capture());
-        assertThat(rateCaptor.getValue()).isNotNull();
+        verify(loanApprovalSaga).approve(eq(credit.getId()), any(), any());
+        verify(creditDecisionService, never()).reject(any(), any());
     }
 
     @Test
@@ -73,13 +71,10 @@ class CreditScoringServiceTest {
 
         service.scoreApplication(credit.getId());
 
-        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
-        verify(creditDecisionService).applyDecision(
-                eq(credit),
-                eq(CreditStatus.REJECTED),
-                reasonCaptor.capture(),
-                isNull());
+        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(creditDecisionService).reject(eq(credit.getId()), reasonCaptor.capture());
         assertThat(reasonCaptor.getValue()).contains("Слишком большая сумма");
+        verify(loanApprovalSaga, never()).approve(any(), any(), any());
     }
 
     @Test
@@ -93,7 +88,8 @@ class CreditScoringServiceTest {
 
         service.scoreApplication(credit.getId());
 
-        verify(creditDecisionService, never()).applyDecision(any(), any(), any(), any());
+        verify(creditDecisionService, never()).reject(any(), any());
+        verify(loanApprovalSaga, never()).approve(any(), any(), any());
     }
 
     @Test
@@ -106,7 +102,8 @@ class CreditScoringServiceTest {
 
         service.scoreApplication(credit.getId());
 
-        verify(creditDecisionService, never()).applyDecision(any(), any(), any(), any());
+        verify(creditDecisionService, never()).reject(any(), any());
+        verify(loanApprovalSaga, never()).approve(any(), any(), any());
     }
 
     @Test
@@ -119,7 +116,35 @@ class CreditScoringServiceTest {
         service.scoreApplication(credit.getId());
 
         verify(paymentHistoryClient, never()).fetchHistory(any());
-        verify(creditDecisionService, never()).applyDecision(any(), any(), any(), any());
+        verify(loanApprovalSaga, never()).approve(any(), any(), any());
+    }
+
+    @Test
+    void scoreApplication_managerApprovesWhileScoringInFlight_swallowsAlreadyDecidedConflict() {
+        CreditEntity credit = credit();
+        when(creditProvider.findById(credit.getId())).thenReturn(Optional.of(credit));
+        when(paymentHistoryClient.fetchHistory(credit.getUserId())).thenReturn(EMPTY_HISTORY);
+        doThrow(new CreditAlreadyDecidedException(credit.getId(), CreditStatus.REJECTED))
+                .when(loanApprovalSaga).approve(eq(credit.getId()), any(), any());
+        CreditScoringService service = serviceWithRules(alwaysReturning(RuleOutcome.pass()));
+
+        service.scoreApplication(credit.getId());
+
+        verify(loanApprovalSaga).approve(eq(credit.getId()), any(), any());
+    }
+
+    @Test
+    void scoreApplication_managerRejectsWhileScoringInFlight_swallowsAlreadyDecidedConflict() {
+        CreditEntity credit = credit();
+        when(creditProvider.findById(credit.getId())).thenReturn(Optional.of(credit));
+        when(paymentHistoryClient.fetchHistory(credit.getUserId())).thenReturn(EMPTY_HISTORY);
+        doThrow(new CreditAlreadyDecidedException(credit.getId(), CreditStatus.APPROVED))
+                .when(creditDecisionService).reject(eq(credit.getId()), any());
+        CreditScoringService service = serviceWithRules(alwaysReturning(RuleOutcome.fail("отказ")));
+
+        service.scoreApplication(credit.getId());
+
+        verify(creditDecisionService).reject(eq(credit.getId()), any());
     }
 
     @Test
@@ -132,7 +157,8 @@ class CreditScoringServiceTest {
     }
 
     private CreditScoringService serviceWithRules(ScoringRule... rules) {
-        return new CreditScoringService(creditProvider, paymentHistoryClient, creditDecisionService, List.of(rules));
+        return new CreditScoringService(
+                creditProvider, paymentHistoryClient, creditDecisionService, loanApprovalSaga, List.of(rules));
     }
 
     private ScoringRule alwaysReturning(RuleOutcome outcome) {

@@ -7,7 +7,6 @@ import ru.creditbank.credit.operations.credit.manage.rest.dto.StatusUpdateReques
 import java.util.UUID;
 
 public interface CreditManageUseCase {
-
     CreditApplicationDetails getApplicationDetails(AuthenticatedUser requester, UUID id);
 
     void updateStatus(UUID id, StatusUpdateRequest request);

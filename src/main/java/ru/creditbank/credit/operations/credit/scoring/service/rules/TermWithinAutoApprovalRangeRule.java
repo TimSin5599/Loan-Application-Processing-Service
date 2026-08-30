@@ -5,13 +5,8 @@ import ru.creditbank.credit.operations.credit.scoring.service.RuleOutcome;
 import ru.creditbank.credit.operations.credit.scoring.service.ScoringContext;
 import ru.creditbank.credit.operations.credit.scoring.service.ScoringRule;
 
-/**
- * Слишком длинные заявки не отклоняем автоматически, но и не одобряем —
- * такие сроки несут больше риска и требуют решения менеджера.
- */
 @Component
 public class TermWithinAutoApprovalRangeRule implements ScoringRule {
-
     public static final int MAX_AUTO_APPROVAL_TERM_MONTHS = 60;
 
     @Override

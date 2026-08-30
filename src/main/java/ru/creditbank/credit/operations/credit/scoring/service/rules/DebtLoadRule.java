@@ -8,15 +8,8 @@ import ru.creditbank.credit.operations.loan.dto.PaymentHistoryResponse;
 
 import java.math.BigDecimal;
 
-/**
- * Не даёт автоматически одобрить заявку, если суммарная долговая нагрузка
- * клиента (текущие кредиты + новая заявка) окажется слишком высокой.
- * У клиента без кредитной истории оценить нагрузку нечем — правило воздерживается,
- * а не отклоняет заявку из-за отсутствия данных.
- */
 @Component
 public class DebtLoadRule implements ScoringRule {
-
     public static final BigDecimal MAX_TOTAL_DEBT = BigDecimal.valueOf(5_000_000);
 
     @Override

@@ -14,7 +14,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MaxAmountRuleTest {
-
     private final MaxAmountRule rule = new MaxAmountRule();
 
     @Test
@@ -40,7 +39,7 @@ class MaxAmountRuleTest {
                 .termMonths(12)
                 .status(CreditStatus.PENDING)
                 .build();
-        PaymentHistoryResponse history = new PaymentHistoryResponse(0, 0, 0, 0, false, BigDecimal.ZERO);
+        PaymentHistoryResponse history = new PaymentHistoryResponse(0, 0, false, BigDecimal.ZERO);
         return new ScoringContext(credit, history);
     }
 }

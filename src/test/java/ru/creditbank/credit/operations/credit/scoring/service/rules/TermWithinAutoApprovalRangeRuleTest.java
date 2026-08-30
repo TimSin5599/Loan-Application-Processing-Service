@@ -14,7 +14,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TermWithinAutoApprovalRangeRuleTest {
-
     private final TermWithinAutoApprovalRangeRule rule = new TermWithinAutoApprovalRangeRule();
 
     @Test
@@ -38,7 +37,7 @@ class TermWithinAutoApprovalRangeRuleTest {
                 .termMonths(termMonths)
                 .status(CreditStatus.PENDING)
                 .build();
-        PaymentHistoryResponse history = new PaymentHistoryResponse(0, 0, 0, 0, false, BigDecimal.ZERO);
+        PaymentHistoryResponse history = new PaymentHistoryResponse(0, 0, false, BigDecimal.ZERO);
         return new ScoringContext(credit, history);
     }
 }
