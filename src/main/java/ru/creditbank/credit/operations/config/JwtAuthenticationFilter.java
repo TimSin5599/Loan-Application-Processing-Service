@@ -11,22 +11,26 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
+    private final SecurityContextRepository securityContextRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, SecurityContextRepository securityContextRepository) {
         this.jwtService = jwtService;
+        this.securityContextRepository = securityContextRepository;
     }
 
     @Override
@@ -52,7 +56,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     ? List.of()
                     : List.of(new SimpleGrantedAuthority("ROLE_" + user.role()));
             var authentication = new UsernamePasswordAuthenticationToken(user, token, authorities);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            SecurityContext context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(authentication);
+            SecurityContextHolder.setContext(context);
+
+            securityContextRepository.saveContext(context, request, response);
         } catch (JwtException | IllegalArgumentException e) {
             unauthorized(response, "Недействительный JWT токен");
             return;
@@ -64,6 +73,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void unauthorized(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write("{\"message\":\"%s\"}".formatted(message));
     }
 }

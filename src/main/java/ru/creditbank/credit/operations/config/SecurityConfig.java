@@ -10,16 +10,19 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextRepository;
 
 @Configuration
 @EnableWebSecurity
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
-
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final SecurityContextRepository securityContextRepository;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                           SecurityContextRepository securityContextRepository) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.securityContextRepository = securityContextRepository;
     }
 
     @Bean
@@ -27,6 +30,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(context -> context.securityContextRepository(securityContextRepository))
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(
                                 (request, response, authException) -> response.sendError(HttpStatus.UNAUTHORIZED.value()))

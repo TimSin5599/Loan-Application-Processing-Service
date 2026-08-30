@@ -11,7 +11,6 @@ import java.util.Date;
 import java.util.UUID;
 
 public final class JwtTestTokenFactory {
-
     private JwtTestTokenFactory() {
     }
 

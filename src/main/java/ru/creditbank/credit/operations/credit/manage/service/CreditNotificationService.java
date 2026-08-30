@@ -11,7 +11,6 @@ import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 
 @Service
 public class CreditNotificationService {
-
     private static final Logger log = LoggerFactory.getLogger(CreditNotificationService.class);
 
     private final JavaMailSender mailSender;
@@ -34,8 +33,10 @@ public class CreditNotificationService {
 
         try {
             mailSender.send(message);
+            log.info("Уведомление по заявке creditId={} отправлено, статус={}", credit.getId(), credit.getStatus());
         } catch (MailException e) {
-            log.warn("Не удалось отправить уведомление по заявке {}", credit.getId(), e);
+            log.error("Не удалось отправить уведомление по заявке creditId={}", credit.getId(), e);
+            throw new NotificationDeliveryFailedException(credit.getId(), e);
         }
     }
 
@@ -43,7 +44,7 @@ public class CreditNotificationService {
         return switch (status) {
             case APPROVED -> "одобрена";
             case REJECTED -> "отклонена";
-            case PENDING -> "на рассмотрении";
+            case PENDING, APPROVAL_IN_PROGRESS -> "на рассмотрении";
         };
     }
 }

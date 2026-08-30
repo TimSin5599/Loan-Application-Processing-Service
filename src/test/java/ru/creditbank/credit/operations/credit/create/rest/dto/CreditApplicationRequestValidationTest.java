@@ -16,7 +16,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CreditApplicationRequestValidationTest {
-
     private static ValidatorFactory validatorFactory;
     private static Validator validator;
 

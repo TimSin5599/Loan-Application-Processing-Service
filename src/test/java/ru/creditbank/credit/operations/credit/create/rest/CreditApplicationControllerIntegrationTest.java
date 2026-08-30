@@ -27,7 +27,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class CreditApplicationControllerIntegrationTest {
-
     private static final String ENDPOINT = "/credit-service/api/v1/credit/";
 
     @Autowired

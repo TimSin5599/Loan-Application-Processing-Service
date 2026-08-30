@@ -12,7 +12,6 @@ import java.util.UUID;
 
 @Service
 public class JwtService {
-
     private static final String USER_ID_CLAIM = "user_id";
     private static final String ROLE_CLAIM = "role";
 

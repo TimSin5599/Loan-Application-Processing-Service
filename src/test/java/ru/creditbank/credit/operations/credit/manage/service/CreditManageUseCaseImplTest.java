@@ -1,18 +1,17 @@
 package ru.creditbank.credit.operations.credit.manage.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.access.AccessDeniedException;
 import ru.creditbank.credit.operations.config.AuthenticatedUser;
 import ru.creditbank.credit.operations.config.Roles;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditEntity;
 import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
 import ru.creditbank.credit.operations.credit.manage.rest.dto.CreditApplicationDetails;
+import ru.creditbank.credit.operations.credit.manage.rest.dto.CreditApplicationDetailsMapper;
 import ru.creditbank.credit.operations.credit.manage.rest.dto.ManagerDecisionStatus;
 import ru.creditbank.credit.operations.credit.manage.rest.dto.StatusUpdateRequest;
 import ru.creditbank.credit.operations.exception.CreditNotFoundException;
@@ -25,20 +24,30 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CreditManageUseCaseImplTest {
-
     @Mock
     private CreditProvider creditProvider;
 
     @Mock
-    private CreditNotificationService creditNotificationService;
+    private CreditDecisionService creditDecisionService;
 
-    @InjectMocks
+    @Mock
+    private LoanApprovalSaga loanApprovalSaga;
+
     private CreditManageUseCaseImpl creditManageUseCase;
+
+    @BeforeEach
+    void setUp() {
+        creditManageUseCase = new CreditManageUseCaseImpl(
+                creditProvider, creditDecisionService, loanApprovalSaga, new CreditApplicationDetailsMapper());
+    }
 
     @Test
     void getApplicationDetails_forManager_returnsDetails() {
@@ -68,13 +77,14 @@ class CreditManageUseCaseImplTest {
     }
 
     @Test
-    void getApplicationDetails_forUnrelatedUser_throwsAccessDenied() {
+    void getApplicationDetails_forAnyAuthenticatedUser_returnsDetails() {
         CreditEntity credit = credit(UUID.randomUUID());
         when(creditProvider.findById(credit.getId())).thenReturn(Optional.of(credit));
         AuthenticatedUser stranger = new AuthenticatedUser(UUID.randomUUID(), "stranger@example.com", null);
 
-        assertThatThrownBy(() -> creditManageUseCase.getApplicationDetails(stranger, credit.getId()))
-                .isInstanceOf(AccessDeniedException.class);
+        CreditApplicationDetails details = creditManageUseCase.getApplicationDetails(stranger, credit.getId());
+
+        assertThat(details.id()).isEqualTo(credit.getId());
     }
 
     @Test
@@ -88,33 +98,35 @@ class CreditManageUseCaseImplTest {
     }
 
     @Test
-    void updateStatus_setsFieldsAndNotifies() {
-        CreditEntity credit = credit(UUID.randomUUID());
-        when(creditProvider.findById(credit.getId())).thenReturn(Optional.of(credit));
-        when(creditProvider.save(any(CreditEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
+    void updateStatus_approved_delegatesToLoanApprovalSaga() {
+        UUID id = UUID.randomUUID();
         StatusUpdateRequest request = new StatusUpdateRequest(
                 ManagerDecisionStatus.APPROVED, "Одобрено", BigDecimal.valueOf(15.5));
 
-        creditManageUseCase.updateStatus(credit.getId(), request);
+        creditManageUseCase.updateStatus(id, request);
 
-        ArgumentCaptor<CreditEntity> captor = ArgumentCaptor.forClass(CreditEntity.class);
-        verify(creditProvider).save(captor.capture());
-        CreditEntity saved = captor.getValue();
+        verify(loanApprovalSaga).approve(id, "Одобрено", BigDecimal.valueOf(15.5));
+        verify(creditDecisionService, never()).reject(any(), any());
+    }
 
-        assertThat(saved.getStatus()).isEqualTo(CreditStatus.APPROVED);
-        assertThat(saved.getManagerComment()).isEqualTo("Одобрено");
-        assertThat(saved.getInterestRate()).isEqualByComparingTo(BigDecimal.valueOf(15.5));
+    @Test
+    void updateStatus_rejected_delegatesToCreditDecisionService() {
+        UUID id = UUID.randomUUID();
+        StatusUpdateRequest request = new StatusUpdateRequest(ManagerDecisionStatus.REJECTED, "Отказано", null);
 
-        verify(creditNotificationService).notifyStatusChange(saved);
+        creditManageUseCase.updateStatus(id, request);
+
+        verify(creditDecisionService).reject(id, "Отказано");
+        verify(loanApprovalSaga, never()).approve(any(), any(), any());
     }
 
     @Test
     void updateStatus_missingCredit_throwsNotFound() {
         UUID id = UUID.randomUUID();
-        when(creditProvider.findById(id)).thenReturn(Optional.empty());
+        doThrow(new CreditNotFoundException(id))
+                .when(creditDecisionService).reject(eq(id), any());
 
-        StatusUpdateRequest request = new StatusUpdateRequest(ManagerDecisionStatus.APPROVED, null, null);
+        StatusUpdateRequest request = new StatusUpdateRequest(ManagerDecisionStatus.REJECTED, null, null);
 
         assertThatThrownBy(() -> creditManageUseCase.updateStatus(id, request))
                 .isInstanceOf(CreditNotFoundException.class);

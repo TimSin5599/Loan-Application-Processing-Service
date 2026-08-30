@@ -18,7 +18,6 @@ import java.util.UUID;
 
 @RestController
 public class CreditManageController {
-
     private final CreditManageUseCase creditManageUseCase;
 
     public CreditManageController(CreditManageUseCase creditManageUseCase) {

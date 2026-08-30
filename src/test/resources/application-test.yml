@@ -12,3 +12,18 @@ spring:
 
 jwt:
   secret: test-secret-key-must-be-at-least-256-bits-long-for-hs256-signing
+
+resilience4j:
+  retry:
+    instances:
+      loanManagementService:
+        max-attempts: 2
+        wait-duration: 10ms
+        enable-exponential-backoff: false
+  circuitbreaker:
+    instances:
+      loanManagementService:
+        sliding-window-size: 4
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 200ms
+        permitted-number-of-calls-in-half-open-state: 2

@@ -37,6 +37,30 @@ spring:
 jwt:
   secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
+services:
+  loan-management:
+    base-url: ${LOAN_MANAGEMENT_URL:http://localhost:8082}
+    internal-api-key: ${INTERNAL_API_KEY:REPLACE_WITH_AN_INTERNAL_SERVICE_SECRET}
+
+resilience4j:
+  retry:
+    instances:
+      loanManagementService:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+  circuitbreaker:
+    instances:
+      loanManagementService:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+
 ---
 spring:
   config:

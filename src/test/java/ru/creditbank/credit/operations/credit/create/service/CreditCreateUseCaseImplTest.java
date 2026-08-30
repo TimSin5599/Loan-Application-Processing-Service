@@ -1,9 +1,9 @@
 package ru.creditbank.credit.operations.credit.create.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.creditbank.credit.operations.config.AuthenticatedUser;
@@ -12,6 +12,8 @@ import ru.creditbank.credit.operations.credit.dao.entity.CreditStatus;
 import ru.creditbank.credit.operations.credit.dao.service.CreditProvider;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationRequest;
 import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponse;
+import ru.creditbank.credit.operations.credit.create.rest.dto.CreditApplicationResponseMapper;
+import ru.creditbank.credit.operations.credit.scoring.service.CreditScoringService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -24,12 +26,19 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CreditCreateUseCaseImplTest {
-
     @Mock
     private CreditProvider creditProvider;
 
-    @InjectMocks
+    @Mock
+    private CreditScoringService creditScoringService;
+
     private CreditCreateUseCaseImpl creditCreateUseCase;
+
+    @BeforeEach
+    void setUp() {
+        creditCreateUseCase = new CreditCreateUseCaseImpl(
+                creditProvider, creditScoringService, new CreditApplicationResponseMapper());
+    }
 
     @Test
     void createApplication_savesEntityWithUserIdAndPendingStatus_andReturnsResponse() {
@@ -71,5 +80,7 @@ class CreditCreateUseCaseImplTest {
         assertThat(response.id()).isEqualTo(savedId);
         assertThat(response.status()).isEqualTo("PENDING");
         assertThat(response.createdAt()).isNotNull();
+
+        verify(creditScoringService).scoreApplication(savedId);
     }
 }
